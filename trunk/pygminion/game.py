@@ -5,21 +5,29 @@ import random
 import utils
 
 def randomTurnTaker(turn, player, gameState):
-    def firstPlayableCard(turnActions, hand):
+    """ play as many action cards as possible, then as many treasure cards as possible """
+    def firstActionCard(hand):
         for card in hand:
-            if turnActions or not card.action:
+            if card.action:
                 return card
-    
-    print 'DEBUG: %s has hand: %s, deck: %s, discard: %s' % (player, player.hand, player.deck, player.discardPile)
-    while firstPlayableCard(turn.actions, player.hand):
-        turn.playCard(firstPlayableCard(turn.actions, player.hand))
 
-    print 'DEBUG: %s has %d actions, %d buys, and %s money this turn' % (player, turn.actions, turn.buys, turn.money)
+    def firstTreasureCard(hand):
+        for card in hand:
+            if card.treasure:
+                return card
+
+    while turn.actions and firstActionCard(player.hand):
+        turn.playCard(firstActionCard(player.hand))
+    while firstTreasureCard(player.hand):
+        turn.playCard(firstTreasureCard(player.hand))
+
+    player.printState()
+
     buyOptions = turn.getBuyOptions()
     if buyOptions:
         buyChoice = random.choice(buyOptions)
         turn.buy(buyChoice)
-        print 'DEBUG: %s bought %s' % (player, buyChoice)
+        print 'DEBUG: %s bought %s (%s)' % (player, buyChoice.card, buyChoice)
 
 
 class Player:
@@ -54,6 +62,23 @@ class Player:
     def __str__(self):
         return self.name
 
+    def printState(self):
+        print 'Current Player: %s.  Current Turn %d Actions, %d Buys, %s Money.' % (self, 
+            self.currentTurn.actions, self.currentTurn.buys, self.currentTurn.money)
+        print '== CardsInPlay: %s  Hand: %s.' % (self.cardsInPlay, self.hand)
+        print '== All Cards: '+self.allCards()
+    
+    def allCards(self):
+        collated = {}
+        for card in self.deck + self.discardPile + self.hand + self.cardsInPlay + self.durationCards:
+            if card in collated:
+                collated[card] += 1
+            else:
+                collated[card] = 1
+        cardCounts = ''
+        for card in collated:
+            cardCounts += '%dx%s, ' % (collated[card], card)
+        return cardCounts
         
     def draw(self, numCards):
         while numCards:
@@ -158,7 +183,7 @@ class Game:
             for i in range(numPlayers):
                 self.players.append(Player("Player %s" % (i + 1)))
         
-        vpCards = [0, 0, 8, 12, 12, 15, 18][numPlayers]
+        vpCards = [0, 8, 8, 12, 12, 15, 18][numPlayers]
         
         self.supplies = [SupplyPile(cards.copper, 60), SupplyPile(cards.silver, 60), SupplyPile(cards.gold, 60),
                          SupplyPile(cards.estate, vpCards), SupplyPile(cards.duchy, vpCards), SupplyPile(cards.province, vpCards)]
