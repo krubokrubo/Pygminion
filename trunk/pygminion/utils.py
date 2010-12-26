@@ -31,3 +31,15 @@ def addMoney(a, b):
     
     return str(a_coins + b_coins) + "p"*(a_potions + b_potions)
         
+def subtractMoney(a, b):
+    a = a.lower()
+    b = b.lower()
+
+    a_coins = sum([int(c) for c in a if c in string.digits])
+    b_coins = sum([int(c) for c in b if c in string.digits])
+    a_potions = sum([1 for c in a if c == 'p'])
+    b_potions = sum([1 for c in b if c == 'p'])
+
+    assert(a_coins >= b_coins and a_potions >= b_potions, "not enough money to subtract :(")
+    
+    return str(a_coins - b_coins) + "p"*(a_potions - b_potions)

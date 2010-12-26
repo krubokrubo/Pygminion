@@ -38,3 +38,6 @@ class card:
         if self.duration: data += " - Duration"
         
         return self.name
+
+    def __str__(self):
+        return self.name

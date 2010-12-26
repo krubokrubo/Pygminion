@@ -4,10 +4,28 @@ import cards
 import random
 import utils
 
+def randomTurnTaker(turn, player, gameState):
+    def firstPlayableCard(turnActions, hand):
+        for card in hand:
+            if turnActions or not card.action:
+                return card
+    
+    print 'DEBUG: %s has hand: %s, deck: %s, discard: %s' % (player, player.hand, player.deck, player.discardPile)
+    while firstPlayableCard(turn.actions, player.hand):
+        turn.playCard(firstPlayableCard(turn.actions, player.hand))
+
+    print 'DEBUG: %s has %d actions, %d buys, and %s money this turn' % (player, turn.actions, turn.buys, turn.money)
+    buyOptions = turn.getBuyOptions()
+    if buyOptions:
+        buyChoice = random.choice(buyOptions)
+        turn.buy(buyChoice)
+        print 'DEBUG: %s bought %s' % (player, buyChoice)
+
+
 class Player:
     """A Dominion player."""
     
-    def __init__(self, name, initialCards=None, actionFunc=None, buyFunc=None):
+    def __init__(self, name, initialCards=None, turnTaker=randomTurnTaker):
         self.name = name
         
         # We start with the cards in the discard pile.
@@ -28,27 +46,15 @@ class Player:
         self.durationCards = []
         self.deck = []
         self.hand = []
+
+        self.turnTaker = turnTaker
         
         self.draw(5)
-        
-        
-        if not actionFunc:
-            def doFirstAction(self):
-                for card in self.hand:
-                    if card.action:
-                        print "*** DEBUG: Playing %s." % card.name
-                        card.cbPlay()
-            self.actionFunc = doFirstAction
-            
-        if not buyFunc:
-            def randomBuy(self, options):
-                choice = random.choice(options)
-                print "*** DEBUG: Buying %s." % choice.card.name
-                self.discardPile.append(choice.buy())
-            self.buyFunc = randomBuy
 
+    def __str__(self):
+        return self.name
 
-    
+        
     def draw(self, numCards):
         while numCards:
             try:
@@ -65,37 +71,61 @@ class Player:
                     self.discardPile = []
                 
     def turn(self, gameState):
+        self.currentTurn = Turn(self, gameState)
+        self.turnTaker(self.currentTurn, self, gameState) 
+        self.currentTurn.cleanup()        
+
+# This class is responsible for presenting the available options during each turn 
+# Which option is chosen will depend on the player's "turnTaker" callback
+class Turn:
+    def __init__(self, player, gameState):
+        self.player = player
+        self.gameState = gameState
         self.actions = 1
-        self.buys    = 1
-        self.money   = "0"
-        
-        for card in self.durationCards:
+        self.buys = 1
+        self.money = "0"
+        for card in player.durationCards:
             card.cbInitTurn(gameState)
-        
-        # Action
-        
-        print "*** DEBUG: %s's turn.  Hand: %s." % (self.name, self.hand)
-        self.actionFunc(self)
-            
-        # Buy
-        
-        for card in self.hand:
-            if card.treasure:
-                card.cbPlay(gameState)
-        
+     
+    def getActionOptions(self):
+        return [card for card in self.player.hand if card.action]
+
+    def playCard(self, card):
+        assert(card in self.player.hand, "card not in hand :(")
+        if card.action:
+            assert(self.actions > 0, "no actions remain in turn :(")
+            self.actions -= 1
+        self.player.hand.remove(card)
+        card.cbPlay(self.gameState)
+        self.player.cardsInPlay.append(card)
+
+    def playAllNonActions(self):
+        for card in self.player.hand:
+            if not card.action:
+                self.playCard(card)
+
+    def getBuyOptions(self):
         options = []
-        for supply in gameState.supplies:
+        for supply in self.gameState.supplies:
             if not supply.isEmpty():
                 if utils.cmpMoney(self.money, supply.cost()) >= 0:
                     options.append(supply)
-        
-        self.buyFunc(self, options)            
-        
-        # Cleanup
-        self.discardPile += self.hand
-        self.hand = []
-        self.draw(5)
+        return options
 
+    def buy(self, supply):
+        assert(utils.cmpMoney(self.money, supply.cost()) >= 0, "not enough money :(")
+        assert(self.buys > 0, "no buys remain in turn :(")
+        self.buys -= 1
+        self.money = utils.subtractMoney(self.money, supply.cost())
+        self.player.discardPile.append(supply.buy())
+
+    def cleanup(self):
+        self.player.discardPile += self.player.hand
+        self.player.hand = []
+        self.player.discardPile += self.player.cardsInPlay
+        self.player.cardsInPlay = []
+        self.player.draw(5)
+        
 class SupplyPile:
     def __init__(self, card, numCards=10):
         self.pile = numCards*[card]
